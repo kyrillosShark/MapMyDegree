@@ -455,7 +455,6 @@
     <div class="button-container">
         <form>
             <button type="submit" formaction="info.html">
-                <img src="infologo.png" alt="Info Button" border="0" />
             </button>
         </form>
     </div>
@@ -503,7 +502,7 @@
                         programs.forEach(program => majorTitles.add(program));
 
                         // Create marker
-                        const marker = new google.maps.Marker({
+                        const marker = new google.maps.AdvancedMarkerElement({
                             position: latLng,
                             map: map,
                             title: `${schoolName}, ${city}, ${state}`,
@@ -877,13 +876,15 @@
 
         // Load Google Maps Script
         function loadGoogleMapsScript() {
-            const script = document.createElement("script");
-            script.src = `https://maps.googleapis.com/maps/api/js?key=AIzaSyCO2Tzz7ULstximwTdftbZMxP-ow60e3XU&callback=initMap`;
-            script.async = true;
-            document.body.appendChild(script);
-        }
+    const script = document.createElement("script");
+    script.src = `https://maps.googleapis.com/maps/api/js?key=AIzaSyCO2Tzz7ULstximwTdftbZMxP-ow60e3XU&callback=initMap`;
+    script.async = true;
+    script.onload = () => console.log('Google Maps script loaded');
+    script.onerror = () => console.error('Error loading Google Maps script');
+    document.body.appendChild(script);
+}
 
-        loadGoogleMapsScript();
+    loadGoogleMapsScript();
     </script>
 </body>
 </html>
