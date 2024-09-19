@@ -5,12 +5,12 @@
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Map My Degree - College Search</title>
-    
+
     <!-- Google Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <!-- Font Awesome for Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    
+
     <style>
         :root {
             --primary-color: #3498db;
@@ -112,9 +112,16 @@
             bottom: 20px;
             border-radius: var(--border-radius);
             box-shadow: var(--shadow-light);
+            width: calc(100% - 40px); /* Ensure width */
+            height: calc(100% - 140px); /* Ensure height */
             transition: left var(--transition), width var(--transition);
             z-index: 1;
+            
         }
+        #map {
+  height: 900px;
+  width: 100%;
+}
 
         #map.expanded {
             left: 20px;
@@ -344,6 +351,7 @@
     </style>
 </head>
 <body>
+
     <!-- Banner Container -->
     <div class="banner-container">
         <!-- Logo Container -->
@@ -455,436 +463,459 @@
     <div class="button-container">
         <form>
             <button type="submit" formaction="info.html">
+                <!-- Add button content or icons as needed -->
             </button>
         </form>
     </div>
 
     <!-- JavaScript -->
-    <script>
+    <script type="module">
         // Initialize the map
-        let map;
+        let map; // Declare the map variable
         let markers = [];
         let stateCities = {};
         let majorTitles = new Set();
         let openInfoWindow = null;
 
-        function initMap() {
-            const mapOptions = {
-                zoom: 5,
-                center: { lat: 39.8283, lng: -98.5795 }, // Center of the US
-                mapTypeId: 'roadmap'
-            };
+        async function initMap() {
+            try {
+                console.log('Initializing map...');
+                // Load the necessary Google Maps libraries dynamically
+                const { Map } = await google.maps.importLibrary("maps");
+                const { AdvancedMarkerElement } = await google.maps.importLibrary("marker");
 
-            map = new google.maps.Map(document.getElementById('map'), mapOptions);
+                // Set up the map options
+                const mapOptions = {
+                    zoom: 5,
+                    center: { lat: 39.8283, lng: -98.5795 }, // Center of the US
+                    mapTypeId: 'roadmap'
+                };
 
-            // Load marker data from a JSON file or API
-            fetch('data/last.json')
-                .then(response => response.json())
-                .then(data => {
-                    data.features.forEach(feature => {
-                        const coords = feature.geometry.coordinates;
-                        const latLng = new google.maps.LatLng(coords[1], coords[0]);
-                        const schoolName = feature.properties.NAME;
-                        const state = feature.properties.STATE;
-                        const city = feature.properties.CITY;
-                        const programs = feature.properties.programs ? feature.properties.programs.map(p => p.title) : [];
-                        const actScores = feature.properties.act_scores ? feature.properties.act_scores.cumulative : null;
-                        const instate = feature.properties.in_state_tuition ? parseInt(feature.properties.in_state_tuition, 10) : null;
-                        const outstate = feature.properties.out_of_state_tuition ? parseInt(feature.properties.out_of_state_tuition, 10) : null;
+                // Create the map
+                map = new Map(document.getElementById('map'), mapOptions);
+                console.log('Map created');
 
-                        // Populate stateCities
-                        if (!stateCities[state]) {
-                            stateCities[state] = new Set();
+                // Load marker data from a JSON file or API
+                fetch('data/last.json')
+                    .then(response => {
+                        if (!response.ok) {
+                            throw new Error(`HTTP error! status: ${response.status}`);
                         }
-                        stateCities[state].add(city);
+                        return response.json();
+                    })
+                    .then(data => {
+                        data.features.forEach(feature => {
+                            const coords = feature.geometry.coordinates;
+                            const latLng = { lat: coords[1], lng: coords[0] };
+                            const schoolName = feature.properties.NAME;
+                            const state = feature.properties.STATE;
+                            const city = feature.properties.CITY;
+                            const programs = feature.properties.programs ? feature.properties.programs.map(p => p.title) : [];
+                            const actScores = feature.properties.act_scores ? feature.properties.act_scores.cumulative : null;
+                            const instate = feature.properties.in_state_tuition ? parseInt(feature.properties.in_state_tuition, 10) : null;
+                            const outstate = feature.properties.out_of_state_tuition ? parseInt(feature.properties.out_of_state_tuition, 10) : null;
 
-                        // Populate majorTitles
-                        programs.forEach(program => majorTitles.add(program));
+                            // Populate stateCities
+                            if (!stateCities[state]) {
+                                stateCities[state] = new Set();
+                            }
+                            stateCities[state].add(city);
 
-                        // Create marker
-                        const marker = new google.maps.AdvancedMarkerElement({
-                            position: latLng,
-                            map: map,
-                            title: `${schoolName}, ${city}, ${state}`,
-                            state: state,
-                            city: city,
-                            programs: programs,
-                            actScores: actScores,
-                            instate: instate,
-                            outstate: outstate,
-                            icon: '/data/photo.png',
-                            schoolName: schoolName
+                            // Populate majorTitles
+                            programs.forEach(program => majorTitles.add(program));
+
+                            // Create marker
+                            const marker = new AdvancedMarkerElement({
+                                position: latLng,
+                                map: map,
+                                title: `${schoolName}, ${city}, ${state}`,
+                                state: state,
+                                city: city,
+                                programs: programs,
+                                actScores: actScores,
+                                instate: instate,
+                                outstate: outstate,
+                                icon: '/data/photo.png', // Ensure this path is correct
+                                schoolName: schoolName
+                            });
+
+                            markers.push(marker);
+
+                            // Create info window content
+                            const infoWindowContent = `
+                                <div class="info-window">
+                                    <div class="info-window-header boxed-header">${schoolName}</div>
+                                    <div class="info-window-body">
+                                        <p>${feature.properties.address}</p>
+                                        <p>${city}, ${state} ${feature.properties.zip_code}</p>
+                                        <p>Average Book Cost: $${feature.properties.book_supply_cost}</p>
+                                        <p>In-State Tuition: $${feature.properties.in_state_tuition}</p>
+                                        <p>Out-of-State Tuition: $${feature.properties.out_of_state_tuition}</p>
+                                        <a href="http://${feature.properties.school_url}" target="_blank" id="page-link">View University Page</a>
+                                        <p>URL: <a href="http://${feature.properties.school_url}" target="_blank">${feature.properties.school_url}</a></p>
+                                    </div>
+                                </div>
+                            `;
+
+                            const infoWindow = new google.maps.InfoWindow({
+                                content: infoWindowContent
+                            });
+
+                            marker.infoWindow = infoWindow;
+
+                            // Add click listener to marker
+                            marker.addListener('click', function () {
+                                if (openInfoWindow) {
+                                    openInfoWindow.close();
+                                }
+                                infoWindow.open(map, marker);
+                                map.setZoom(10);
+                                map.setCenter(marker.getPosition());
+
+                                openInfoWindow = infoWindow;
+                            });
                         });
 
-                        markers.push(marker);
+                        populateStateDropdown();
+                        populateMajorDropdown();
+                    })
+                } catch (error) {
+    console.error('Error initializing the map:', error);
+}
 
-                        // Create info window content
-                        const infoWindowContent = `
+                // Geolocation to find user position and calculate distance
+                navigator.geolocation.getCurrentPosition(position => {
+                    const userPosition = new google.maps.LatLng(position.coords.latitude, position.coords.longitude);
+
+                    markers.forEach(marker => {
+                        const markerPosition = marker.getPosition();
+                        const distance = calculateDistance(userPosition, markerPosition);
+
+                        // Update marker title to include distance
+                        marker.setTitle(`${marker.getTitle()} - ${distance.toFixed(2)} miles away`);
+
+                        // Update info window content with distance
+                        const updatedContent = `
                             <div class="info-window">
-                                <div class="info-window-header boxed-header">${schoolName}</div>
+                                <div class="info-window-header boxed-header">${marker.schoolName}</div>
                                 <div class="info-window-body">
-                                    <p>${feature.properties.address}</p>
-                                    <p>${city}, ${state} ${feature.properties.zip_code}</p>
-                                    <p>Average Book Cost: $${feature.properties.book_supply_cost}</p>
-                                    <p>In-State Tuition: $${feature.properties.in_state_tuition}</p>
-                                    <p>Out-of-State Tuition: $${feature.properties.out_of_state_tuition}</p>
-                                    <a href="http://${feature.properties.school_url}" target="_blank" id="page-link">View University Page</a>
-                                    <p>URL: <a href="http://${feature.properties.school_url}" target="_blank">${feature.properties.school_url}</a></p>
+                                    <p>${marker.getTitle().split(',')[1].trim()}, ${marker.getTitle().split(',')[2].split(' ')[0]}</p>
+                                    <p>Distance: ${distance.toFixed(2)} miles</p>
                                 </div>
                             </div>
                         `;
-
-                        const infoWindow = new google.maps.InfoWindow({
-                            content: infoWindowContent
-                        });
-
-                        marker.infoWindow = infoWindow;
-
-                        // Add click listener to marker
-                        marker.addListener('click', function () {
-                            if (openInfoWindow) {
-                                openInfoWindow.close();
-                            }
-                            infoWindow.open(map, marker);
-                            map.setZoom(10);
-                            map.setCenter(marker.getPosition());
-
-                            openInfoWindow = infoWindow;
-                        });
+                        marker.infoWindow.setContent(updatedContent);
                     });
+                }, error => {
+                    console.error('Error getting user location:', error);
+                });
+            }
 
-                    populateStateDropdown();
-                    populateMajorDropdown();
-                })
-                .catch(error => console.error('Error loading JSON data:', error));
+            // Calculate distance between two LatLng points using Haversine formula
+            function calculateDistance(userPosition, markerPosition) {
+                const R = 3958.8; // Radius of the Earth in miles
+                const lat1 = userPosition.lat();
+                const lon1 = userPosition.lng();
+                const lat2 = markerPosition.lat();
+                const lon2 = markerPosition.lng();
 
-            // Geolocation to find user position and calculate distance
-            navigator.geolocation.getCurrentPosition(position => {
-                const userPosition = new google.maps.LatLng(position.coords.latitude, position.coords.longitude);
+                const dLat = (lat2 - lat1) * (Math.PI / 180);
+                const dLon = (lon2 - lon1) * (Math.PI / 180);
+
+                const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                          Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) *
+                          Math.sin(dLon / 2) * Math.sin(dLon / 2);
+                const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+                const distance = R * c; // Distance in miles
+                return distance;
+            }
+
+            // Populate State Dropdown
+            function populateStateDropdown() {
+                const stateSelect = document.getElementById('stateSelect');
+                stateSelect.innerHTML = '<option value="">Select State</option>';
+                Object.keys(stateCities).sort().forEach(state => {
+                    const option = document.createElement('option');
+                    option.value = state;
+                    option.textContent = state;
+                    stateSelect.appendChild(option);
+                });
+            }
+
+            // Populate City Dropdown based on selected state
+            function populateCityDropdown(selectedState) {
+                const citySelect = document.getElementById('citySelect');
+                citySelect.innerHTML = '<option value="">Select City</option>';
+                if (selectedState && stateCities[selectedState]) {
+                    Array.from(stateCities[selectedState]).sort().forEach(city => { // Corrected Array.from
+                        const option = document.createElement('option');
+                        option.value = city;
+                        option.textContent = city;
+                        citySelect.appendChild(option);
+                    });
+                }
+            }
+
+            // Populate Major Dropdown
+            function populateMajorDropdown() {
+                const majorSelect = document.getElementById('majorSelect');
+                majorSelect.innerHTML = '<option value="">Select Major</option>';
+                Array.from(majorTitles).sort().forEach(major => { // Corrected Array.from
+                    const option = document.createElement('option');
+                    option.value = major;
+                    option.textContent = major;
+                    majorSelect.appendChild(option);
+                });
+            }
+
+            // Handle State Change
+            function onStateChange() {
+                const selectedState = document.getElementById('stateSelect').value;
+                populateCityDropdown(selectedState);
+                filterMarkers();
+            }
+
+            // Handle Searching for Schools
+            function searchSchools() {
+                const searchInput = document.getElementById('searchInput').value.toLowerCase();
 
                 markers.forEach(marker => {
-                    const markerPosition = marker.getPosition();
-                    const distance = calculateDistance(userPosition, markerPosition);
-
-                    // Update marker title to include distance
-                    marker.setTitle(`${marker.getTitle()} - ${distance.toFixed(2)} miles away`);
-
-                    // Update info window content with distance
-                    const updatedContent = `
-                        <div class="info-window">
-                            <div class="info-window-header boxed-header">${marker.schoolName}</div>
-                            <div class="info-window-body">
-                                <p>${marker.getTitle().split(',')[1].trim()}, ${marker.getTitle().split(',')[2].split(' ')[0]}</p>
-                                <p>Distance: ${distance.toFixed(2)} miles</p>
-                            </div>
-                        </div>
-                    `;
-                    marker.infoWindow.setContent(updatedContent);
-                });
-            }, error => {
-                console.error('Error getting user location:', error);
-            });
-        }
-
-        // Calculate distance between two LatLng points using Haversine formula
-        function calculateDistance(userPosition, markerPosition) {
-            const R = 3958.8; // Radius of the Earth in miles
-            const lat1 = userPosition.lat();
-            const lon1 = userPosition.lng();
-            const lat2 = markerPosition.lat();
-            const lon2 = markerPosition.lng();
-
-            const dLat = (lat2 - lat1) * (Math.PI / 180);
-            const dLon = (lon2 - lon1) * (Math.PI / 180);
-
-            const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-                      Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) *
-                      Math.sin(dLon / 2) * Math.sin(dLon / 2);
-            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-
-            const distance = R * c; // Distance in miles
-            return distance;
-        }
-
-        // Populate State Dropdown
-        function populateStateDropdown() {
-            const stateSelect = document.getElementById('stateSelect');
-            stateSelect.innerHTML = '<option value="">Select State</option>';
-            Object.keys(stateCities).sort().forEach(state => {
-                const option = document.createElement('option');
-                option.value = state;
-                option.textContent = state;
-                stateSelect.appendChild(option);
-            });
-        }
-
-        // Populate City Dropdown based on selected state
-        function populateCityDropdown(selectedState) {
-            const citySelect = document.getElementById('citySelect');
-            citySelect.innerHTML = '<option value="">Select City</option>';
-            if (selectedState && stateCities[selectedState]) {
-                Array.from(stateCities[selectedState]).sort().forEach(city => {
-                    const option = document.createElement('option');
-                    option.value = city;
-                    option.textContent = city;
-                    citySelect.appendChild(option);
+                    const schoolName = marker.schoolName.toLowerCase();
+                    const matchSearch = schoolName.includes(searchInput);
+                    marker.setVisible(matchSearch && marker.visibleByFilters);
                 });
             }
-        }
 
-        // Populate Major Dropdown
-        function populateMajorDropdown() {
-            const majorSelect = document.getElementById('majorSelect');
-            majorSelect.innerHTML = '<option value="">Select Major</option>';
-            Array.from(majorTitles).sort().forEach(major => {
-                const option = document.createElement('option');
-                option.value = major;
-                option.textContent = major;
-                majorSelect.appendChild(option);
-            });
-        }
+            // Filter Markers based on selected filters
+            function filterMarkers() {
+                const selectedState = document.getElementById('stateSelect').value;
+                const selectedCity = document.getElementById('citySelect').value;
+                const selectedMajor = document.getElementById('majorSelect').value;
+                const selectedACTScore = parseInt(document.getElementById('actScore').value, 10);
+                const selectedInstate = parseInt(document.getElementById('instate').value, 10);
+                const selectedOutstate = parseInt(document.getElementById('outstate').value, 10);
+                const distanceLimit = parseInt(document.getElementById('distanceSlider').value, 10);
 
-        // Handle State Change
-        function onStateChange() {
-            const selectedState = document.getElementById('stateSelect').value;
-            populateCityDropdown(selectedState);
-            filterMarkers();
-        }
+                markers.forEach(marker => {
+                    const stateMatch = selectedState === '' || marker.state === selectedState;
+                    const cityMatch = selectedCity === '' || marker.city === selectedCity;
+                    const majorMatch = selectedMajor === '' || marker.programs.includes(selectedMajor);
+                    const actScoreMatch = isNaN(selectedACTScore) || (marker.actScores && marker.actScores <= selectedACTScore);
+                    const instateMatch = (marker.instate !== null && !isNaN(selectedInstate)) ? (marker.instate <= selectedInstate) : true;
+                    const outstateMatch = isNaN(selectedOutstate) || (marker.outstate && marker.outstate <= selectedOutstate);
 
-        // Handle Searching for Schools
-        function searchSchools() {
-            const searchInput = document.getElementById('searchInput').value.toLowerCase();
+                    // For distance, assuming userPosition is set during geolocation
+                    let withinDistanceLimit = true;
+                    if (typeof userPosition !== 'undefined') {
+                        const markerPosition = marker.getPosition();
+                        const distance = calculateDistance(userPosition, markerPosition);
+                        withinDistanceLimit = distanceLimit === 3000 || (distance <= distanceLimit);
+                    }
 
-            markers.forEach(marker => {
-                const schoolName = marker.schoolName.toLowerCase();
-                const matchSearch = schoolName.includes(searchInput);
-                marker.setVisible(matchSearch && marker.visibleByFilters);
-            });
-        }
+                    const isVisible = stateMatch && cityMatch && majorMatch && actScoreMatch && instateMatch && outstateMatch && withinDistanceLimit;
 
-        // Filter Markers based on selected filters
-        function filterMarkers() {
-            const selectedState = document.getElementById('stateSelect').value;
-            const selectedCity = document.getElementById('citySelect').value;
-            const selectedMajor = document.getElementById('majorSelect').value;
-            const selectedACTScore = parseInt(document.getElementById('actScore').value, 10);
-            const selectedInstate = parseInt(document.getElementById('instate').value, 10);
-            const selectedOutstate = parseInt(document.getElementById('outstate').value, 10);
-            const distanceLimit = parseInt(document.getElementById('distanceSlider').value, 10);
+                    marker.visibleByFilters = isVisible; // Store visibility based on filters
+                    marker.setVisible(isVisible);
+                });
 
-            markers.forEach(marker => {
-                const stateMatch = selectedState === '' || marker.state === selectedState;
-                const cityMatch = selectedCity === '' || marker.city === selectedCity;
-                const majorMatch = selectedMajor === '' || marker.programs.includes(selectedMajor);
-                const actScoreMatch = isNaN(selectedACTScore) || (marker.actScores && marker.actScores <= selectedACTScore);
-                const instateMatch = (marker.instate !== null && !isNaN(selectedInstate)) ? (marker.instate <= selectedInstate) : true;
-                const outstateMatch = isNaN(selectedOutstate) || (marker.outstate && marker.outstate <= selectedOutstate);
+                // Additionally, apply search filter
+                searchSchools();
+            }
 
-                // For distance, assuming userPosition is set during geolocation
-                let withinDistanceLimit = true;
-                if (typeof userPosition !== 'undefined') {
-                    const markerPosition = marker.getPosition();
-                    const distance = calculateDistance(userPosition, markerPosition);
-                    withinDistanceLimit = distanceLimit === 3000 || (distance <= distanceLimit);
+            // Update ACT Score Display
+            function updateACTScoreDisplay(value) {
+                document.getElementById('actScoreDisplay').textContent = value;
+                filterMarkers();
+            }
+
+            // Update In-State Tuition Display
+            function updateINStateDisplay(value) {
+                document.getElementById('INStateDisplay').textContent = `$${value}`;
+                filterMarkers();
+            }
+
+            // Update Out-of-State Tuition Display
+            function updateOUTStateDisplay(value) {
+                document.getElementById('OUTStateDisplay').textContent = `$${value}`;
+                filterMarkers();
+            }
+
+            // Update Distance Limit Display
+            function updateDistanceLimitDisplay(value) {
+                const displayElement = document.getElementById('distanceLimitDisplay');
+                if (value < 3000) {
+                    displayElement.textContent = `${value} miles`;
+                } else {
+                    displayElement.textContent = '3000+ miles';
                 }
-
-                const isVisible = stateMatch && cityMatch && majorMatch && actScoreMatch && instateMatch && outstateMatch && withinDistanceLimit;
-
-                marker.visibleByFilters = isVisible; // Store visibility based on filters
-                marker.setVisible(isVisible);
-            });
-
-            // Additionally, apply search filter
-            searchSchools();
-        }
-
-        // Update ACT Score Display
-        function updateACTScoreDisplay(value) {
-            document.getElementById('actScoreDisplay').textContent = value;
-            filterMarkers();
-        }
-
-        // Update In-State Tuition Display
-        function updateINStateDisplay(value) {
-            document.getElementById('INStateDisplay').textContent = `$${value}`;
-            filterMarkers();
-        }
-
-        // Update Out-of-State Tuition Display
-        function updateOUTStateDisplay(value) {
-            document.getElementById('OUTStateDisplay').textContent = `$${value}`;
-            filterMarkers();
-        }
-
-        // Update Distance Limit Display
-        function updateDistanceLimitDisplay(value) {
-            const displayElement = document.getElementById('distanceLimitDisplay');
-            if (value < 3000) {
-                displayElement.textContent = `${value} miles`;
-            } else {
-                displayElement.textContent = '3000+ miles';
-            }
-            filterMarkers();
-        }
-
-        // Convert SAT to ACT Score
-        const satToActConversionTable = {
-            '590-615': 9,
-            '616-645': 10,
-            '646-685': 11,
-            '686-725': 12,
-            '726-775': 13,
-            '776-825': 14,
-            '826-875': 15,
-            '876-915': 16,
-            '916-955': 17,
-            '956-985': 18,
-            '986-1015': 19,
-            '1016-1055': 20,
-            '1056-1095': 21,
-            '1096-1125': 22,
-            '1126-1155': 23,
-            '1156-1195': 24,
-            '1196-1225': 25,
-            '1226-1255': 26,
-            '1256-1295': 27,
-            '1296-1325': 28,
-            '1326-1355': 29,
-            '1356-1385': 30,
-            '1386-1415': 31,
-            '1416-1445': 32,
-            '1446-1485': 33,
-            '1486-1525': 34,
-            '1526-1565': 35,
-            '1566-1600': 36
-        };
-
-        function convertSATtoACT() {
-            const satScore = parseInt(document.getElementById('satScore').value, 10);
-            const convertedACTScoreOutput = document.getElementById('convertedACTScore');
-
-            if (isNaN(satScore)) {
-                convertedACTScoreOutput.value = '';
-                return;
+                filterMarkers();
             }
 
-            let convertedACTScore = 'N/A';
-            for (const range in satToActConversionTable) {
-                const [start, end] = range.split('-').map(Number);
-                if (satScore >= start && satScore <= end) {
-                    convertedACTScore = satToActConversionTable[range];
-                    break;
-                }
-            }
-
-            convertedACTScoreOutput.value = convertedACTScore;
-            filterMarkers();
-        }
-
-        // Reset Filters
-        function resetFilters() {
-            document.getElementById('searchInput').value = '';
-            document.getElementById('stateSelect').value = '';
-            document.getElementById('citySelect').value = '';
-            document.getElementById('majorSelect').value = '';
-            document.getElementById('actScore').value = '36';
-            document.getElementById('actScoreDisplay').textContent = '36';
-            document.getElementById('instate').value = '75000';
-            document.getElementById('INStateDisplay').textContent = '$75000';
-            document.getElementById('outstate').value = '75000';
-            document.getElementById('OUTStateDisplay').textContent = '$75000';
-            document.getElementById('distanceSlider').value = '3000';
-            document.getElementById('distanceLimitDisplay').textContent = '3000+ miles';
-            document.getElementById('satScore').value = '';
-            document.getElementById('convertedACTScore').value = '';
-            filterMarkers();
-        }
-
-        // Handle Sidebar Toggle
-        document.getElementById('toggleButton').addEventListener('click', function() {
-            const controls = document.getElementById('controls');
-            const map = document.getElementById('map');
-            const toggleButton = document.getElementById('toggleButton');
-
-            if (controls.classList.contains('collapsed')) {
-                controls.classList.remove('collapsed');
-                map.classList.remove('expanded');
-                toggleButton.innerHTML = '<i class="fas fa-chevron-left"></i>';
-            } else {
-                controls.classList.add('collapsed');
-                map.classList.add('expanded');
-                toggleButton.innerHTML = '<i class="fas fa-chevron-right"></i>';
-            }
-        });
-
-        // Handle Feedback Popup
-        document.getElementById('popup-link').addEventListener('click', function(event) {
-            event.preventDefault();
-            document.getElementById('popup-window').style.display = 'block';
-        });
-
-        document.getElementById('close-button').addEventListener('click', function() {
-            document.getElementById('popup-window').style.display = 'none';
-        });
-
-        // Submit Feedback Survey
-        function submitSurvey() {
-            const rating = document.getElementById('rating').value;
-            const fullName = document.getElementById('fullName').value;
-            const contactInfo = document.getElementById('contactInfo').value;
-            const feedback = document.getElementById('feedback').value;
-
-            const data = {
-                rating: rating,
-                fullName: fullName,
-                contactInfo: contactInfo,
-                feedback: feedback
+            // Convert SAT to ACT Score
+            const satToActConversionTable = {
+                '590-615': 9,
+                '616-645': 10,
+                '646-685': 11,
+                '686-725': 12,
+                '726-775': 13,
+                '776-825': 14,
+                '826-875': 15,
+                '876-915': 16,
+                '916-955': 17,
+                '956-985': 18,
+                '986-1015': 19,
+                '1016-1055': 20,
+                '1056-1095': 21,
+                '1096-1125': 22,
+                '1126-1155': 23,
+                '1156-1195': 24,
+                '1196-1225': 25,
+                '1226-1255': 26,
+                '1256-1295': 27,
+                '1296-1325': 28,
+                '1326-1355': 29,
+                '1356-1385': 30,
+                '1386-1415': 31,
+                '1416-1445': 32,
+                '1446-1485': 33,
+                '1486-1525': 34,
+                '1526-1565': 35,
+                '1566-1600': 36
             };
 
-            console.log(`Submitting feedback: ${JSON.stringify(data)}`);
+            function convertSATtoACT() {
+                const satScore = parseInt(document.getElementById('satScore').value, 10);
+                const convertedACTScoreOutput = document.getElementById('convertedACTScore');
 
-            // Placeholder for sending data to the server
-            // You can implement an AJAX request here
+                if (isNaN(satScore)) {
+                    convertedACTScoreOutput.value = '';
+                    return;
+                }
 
-            // For now, just log the data and close the popup
-            alert('Thank you for your feedback!');
-            document.getElementById('popup-window').style.display = 'none';
-            document.getElementById('surveyForm').reset();
-            // Reset star ratings
-            const stars = document.querySelectorAll('.star');
-            stars.forEach(star => star.classList.remove('active'));
-        }
+                let convertedACTScore = 'N/A';
+                for (const range in satToActConversionTable) {
+                    const [start, end] = range.split('-').map(Number);
+                    if (satScore >= start && satScore <= end) {
+                        convertedACTScore = satToActConversionTable[range];
+                        break;
+                    }
+                }
 
-        // Handle Star Rating Clicks
-        const stars = document.querySelectorAll('.star');
-        const ratingInput = document.getElementById('rating');
+                convertedACTScoreOutput.value = convertedACTScore;
+                filterMarkers();
+            }
 
-        stars.forEach(star => {
-            star.addEventListener('click', () => {
-                const rating = parseInt(star.getAttribute('data-rating'));
-                ratingInput.value = rating;
+            // Reset Filters
+            function resetFilters() {
+                document.getElementById('searchInput').value = '';
+                document.getElementById('stateSelect').value = '';
+                document.getElementById('citySelect').value = '';
+                document.getElementById('majorSelect').value = '';
+                document.getElementById('actScore').value = '36';
+                document.getElementById('actScoreDisplay').textContent = '36';
+                document.getElementById('instate').value = '75000';
+                document.getElementById('INStateDisplay').textContent = '$75000';
+                document.getElementById('outstate').value = '75000';
+                document.getElementById('OUTStateDisplay').textContent = '$75000';
+                document.getElementById('distanceSlider').value = '3000';
+                document.getElementById('distanceLimitDisplay').textContent = '3000+ miles';
+                document.getElementById('satScore').value = '';
+                document.getElementById('convertedACTScore').value = '';
+                filterMarkers();
+            }
 
-                // Remove 'active' class from all stars
-                stars.forEach(s => s.classList.remove('active'));
+            // Handle Sidebar Toggle
+            document.getElementById('toggleButton').addEventListener('click', function() {
+                const controls = document.getElementById('controls');
+                const mapElement = document.getElementById('map');
+                const toggleButton = document.getElementById('toggleButton');
 
-                // Add 'active' class to selected stars
-                for (let i = 0; i < rating; i++) {
-                    stars[i].classList.add('active');
+                if (controls.classList.contains('collapsed')) {
+                    controls.classList.remove('collapsed');
+                    mapElement.classList.remove('expanded');
+                    toggleButton.innerHTML = '<i class="fas fa-chevron-left"></i>';
+                } else {
+                    controls.classList.add('collapsed');
+                    mapElement.classList.add('expanded');
+                    toggleButton.innerHTML = '<i class="fas fa-chevron-right"></i>';
                 }
             });
-        });
 
-        // Load Google Maps Script
-        function loadGoogleMapsScript() {
-    const script = document.createElement("script");
-    script.src = `https://maps.googleapis.com/maps/api/js?key=AIzaSyCO2Tzz7ULstximwTdftbZMxP-ow60e3XU&callback=initMap`;
-    script.async = true;
-    script.onload = () => console.log('Google Maps script loaded');
-    script.onerror = () => console.error('Error loading Google Maps script');
-    document.body.appendChild(script);
-}
+            // Handle Feedback Popup
+            document.getElementById('popup-link').addEventListener('click', function(event) {
+                event.preventDefault();
+                document.getElementById('popup-window').style.display = 'block';
+            });
 
-    loadGoogleMapsScript();
-    </script>
-</body>
+            document.getElementById('close-button').addEventListener('click', function() {
+                document.getElementById('popup-window').style.display = 'none';
+            });
+
+            // Submit Feedback Survey
+            function submitSurvey() {
+                const rating = document.getElementById('rating').value;
+                const fullName = document.getElementById('fullName').value;
+                const contactInfo = document.getElementById('contactInfo').value;
+                const feedback = document.getElementById('feedback').value;
+
+                const data = {
+                    rating: rating,
+                    fullName: fullName,
+                    contactInfo: contactInfo,
+                    feedback: feedback
+                };
+
+                console.log(`Submitting feedback: ${JSON.stringify(data)}`);
+
+                // Placeholder for sending data to the server
+                // You can implement an AJAX request here
+
+                // For now, just log the data and close the popup
+                alert('Thank you for your feedback!');
+                document.getElementById('popup-window').style.display = 'none';
+                document.getElementById('surveyForm').reset();
+                // Reset star ratings
+                const stars = document.querySelectorAll('.star');
+                stars.forEach(star => star.classList.remove('active'));
+            }
+
+            // Handle Star Rating Clicks
+            const stars = document.querySelectorAll('.star');
+            const ratingInput = document.getElementById('rating');
+
+            stars.forEach(star => {
+                star.addEventListener('click', () => {
+                    const rating = parseInt(star.getAttribute('data-rating'));
+                    ratingInput.value = rating;
+
+                    // Remove 'active' class from all stars
+                    stars.forEach(s => s.classList.remove('active'));
+
+                    // Add 'active' class to selected stars
+                    for (let i = 0; i < rating; i++) {
+                        stars[i].classList.add('active');
+                    }
+                });
+            });
+
+            // Load the Google Maps script with `type="module"` and call initMap after loading
+            (async () => {
+                try {
+                    const script = document.createElement('script');
+                    script.type = 'module';
+                    script.src = `https://maps.googleapis.com/maps/api/js?key=AIzaSyCO2Tzz7ULstximwTdftbZMxP-ow60e3XU&v=weekly`;
+                    script.defer = true;
+                    script.async = true;
+                    script.onload = initMap;
+                    script.onerror = () => console.error('Failed to load Google Maps script');
+                    document.head.appendChild(script);
+                } catch (error) {
+                    console.error('Error loading Google Maps script:', error);
+                }
+            
+            })();
+        
+        </script>
+    </body>
 </html>
